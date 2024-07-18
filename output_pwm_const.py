@@ -17,7 +17,7 @@ try:
     gpio.hardware_PWM(12, pwm_freq, int(duty_cycle * 255 / 100))
 
     print("Start PWM with a duty cycle of 5%")
-    gpio.set_PWM_dutycycle(12, int(100 * 255 / 100))
+    gpio.set_PWM_dutycycle(12, int(20 * 255 / 100))
 
     # Wait for 5 seconds
     print("Wait for 5 seconds")
