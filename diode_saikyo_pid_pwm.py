@@ -6,9 +6,13 @@ import csv
 from simple_pid import PID
 import math
 
-Kp = 0
+Kp = 20.0
 Ki = 0.0
 Kd = 0.0
+
+diode_current = 0.00963  # 9.63mA
+ampR = 1.986  # 1.986 kΩ
+ampGain = 1 + 49.4 / ampR
 
 pid = PID(-Kp, -Ki, -Kd, setpoint=0)
 pid.output_limits = (0, 30)  # PWM は0~30%の範囲で出力
@@ -23,7 +27,6 @@ test_resistance = [
 pwm_freq = 1000
 duty_range = [0, 30]  # duty比の範囲
 
-diode_current = 0.0963  # 96.3mA
 
 gpio = pigpio.pi()
 
@@ -48,20 +51,31 @@ with open("/home/pi/BMF_CV/idiode.csv", "w", newline="") as file:
     writer = csv.writer(file)
     writer.writerow(["time", "Voltage", "Resistance", "PWM"])
     try:
+        # PWMの設定
         gpio.hardware_PWM(12, pwm_freq, int(0 * 255 / 100))
-        gpio.set_PWM_dutycycle(12, int(10 * 255 / 100))
+        # 初期PWMの設定
+        gpio.set_PWM_dutycycle(12, int(0 * 255 / 100))
+        # 目標抵抗値の設定
         pid.setpoint = test_resistance[0]
         print("target: {0:.3f}Ω".format(pid.setpoint))
         while True:
+            # チャンネル6~7の差分電圧を読み取る
             voltage = adc.read_voltage(channel=6, convtype=0, vref=5.0)
-            elapsed_time = time.perf_counter() - start_time
-            if voltage > v_thresh[0] and voltage < v_thresh[1]:
-                if (control := pid(voltage / diode_current)) is None:
+            # 経過時間
+            elapsed_time = time.perf_counter() - start_time  # 経過時間
+            if (
+                voltage > v_thresh[0] and voltage < v_thresh[1]
+            ):  # 1.5V ~ 3.0V の範囲内のとき
+                if (control := pid(voltage / ampGain / diode_current)) is None:
                     control = 0
                 gpio.set_PWM_dutycycle(12, int(control * 255 / 100))
-                csv_data.append([elapsed_time, voltage, voltage / diode_current, control])
+                csv_data.append(
+                    [elapsed_time, voltage, (voltage / ampGain) / diode_current, control]
+                )
             print(
-                "T: {0:.1f}s, V: {1:.3f}V, R: {2:.1f}Ω, PWM: {3:.1f}%".format(elapsed_time, voltage, voltage / diode_current, control),
+                "T: {0:.1f}s, V: {1:.3f}V, R: {2:.1f}Ω, PWM: {3:.1f}%".format(
+                    elapsed_time, voltage, (voltage / ampGain) / diode_current, control
+                ),
                 end="\r",
             )
 
