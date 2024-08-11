@@ -17,25 +17,22 @@ from enum import IntEnum
 import pigpio
 from simple_pid import PID
 
-import mcp3208 as adc
-import rotary_code as rc
+import CTA_feedback.module.skyfish.mcp3208 as adc
+import CTA_feedback.module.skyfish.rotary_code as rc
 
 # --- パラメータ設定 ---
-# /// PID ///
-Kp = 40.0 # 比例ゲイン40 :y = 24.286x + 18.333 : y=41.182e^(0.2377x) : y=4.4643x^2-6.9643x+60
-Ki = 10.0 # 積分ゲイン 10
-Kd = 0.5 # 微分ゲイン 0.5
-# /// PWM ///
-pwm_freq = 1000 # 1000
-resistance_range = [7.2, 10] # 抵抗値の許容範囲(7.5~10.0Ω)
-duty_range = [7, 100] # PWMの許容範囲(0~100%)7
-pins = [22, 23, 24, 25] # ロータリコードのピン設定
-# /// その他 ///
 isSave = True # csvに保存するかどうか
-read_samples = 500 # サンプル数 500
-Vthreshold = 1.4 # 電圧の閾値
 Vref = 5.0 # 電源電圧
 Offset = 2.5 # オフセット電圧
+read_samples = 500 # サンプル数 500
+Vthreshold = 1.4 # 電圧の閾値
+Kp = -30.0 # 比例ゲイン
+Ki = 0.0 # 積分ゲイン
+Kd = 0.0 # 微分ゲイン
+pwm_freq = 1000
+duty_cycle = 50
+resistance_range = [7, 12] # 抵抗値の許容範囲(7.5~10.0Ω)
+pins = [22, 23, 24, 25] # ロータリコードのピン設定
 
 # --- 定数計算 ---
 work_dir = os.getcwd() # 作業ディレクトリのパス
@@ -50,8 +47,8 @@ now = datetime.datetime.now(JST)
 
 # --- ロゴ表示 ---
 os.system(f"clear && paste {work_dir}/skyfish/pilogo.txt {work_dir}/skyfish/bmflogo.txt | lolcat")
-# os.system(f"clear && paste {work_dir}/skyfish/pilogo.txt {work_dir}/skyfish/bmflogo.txt | tte slide")
-# tteに渡す引数一覧（https://chrisbuilds.github.io/terminaltexteffects/showroom/）
+
+
 # --- ADC設定 ---
 # チャンネル定義
 class ch(IntEnum):
@@ -74,28 +71,26 @@ except PermissionError:
 
 # --- PWM ---
 pi = pigpio.pi()
-pi.hardware_PWM(12, pwm_freq, int(duty_range[0] * 255 / 100))
+pi.hardware_PWM(12, pwm_freq, int(duty_cycle * 255 / 100))
 rc.setup_pin(pi, pins, pigpio.INPUT, pigpio.PUD_DOWN)
 
 # --- PID制御 ---
-pid = PID(-Kp, -Ki, -Kd,
+pid = PID(Kp, Ki, Kd,
           setpoint=((1 - (rc.read_pin(pi, pins) / 9.0)) * r_range) + resistance_range[0],
-          output_limits=(duty_range[0], duty_range[1]))
+          output_limits=(10, 80))
 
 # --- CSV ---
 # CSVファイル名
-csv_filename = f'RPI{now.strftime("%y%m%d_%H-%M-%S")}_M{str(read_samples)}_PID{str(Kp)}-{str(Ki)}-{str(Kd)}'
+csv_filename = "RPI_" + now.strftime('%Y-%m-%d_%H-%M-%S') + "_MEAN" + str(read_samples)
 print("\033[?25l保存CSVファイルン名: " + csv_filename + ".csv")
 
 # CSVヘッダー
-csv_header = ["elapsed_S", "supply_V", "current_A", "BMF_R", "target_R", "PWM"]
+csv_header = ["elapsed_S", "supply_V", "current_A", "BMF_R", "target_R"]
 
 # --- メイン処理 ---
 try:
     # CSV保存用データ
     csv_data = np.empty((0, len(csv_header)), dtype=np.float64)
-
-    seikaku_count = 0
 
     # 開始時間
     zero_count = 0
@@ -104,8 +99,6 @@ try:
     elapse = 0
     while True:
         pid.setpoint = target_resistance = ((1 - (rc.read_pin(pi, pins) / 9.0)) * r_range) + resistance_range[0]
-        # pid.Kp = -1*41.182 * np.exp(0.2377 * target_resistance)
-        # pid.Kp = -4.4643 * (target_resistance ** 2) + 6.9643 * target_resistance - 60
         # キャッシュデータ (BMF電圧, BMF電流)
         cache_data = np.empty((0, 2), dtype=np.float64)
         while len(cache_data) < read_samples: # サンプル数分だけ取得
@@ -138,27 +131,17 @@ try:
         mean = np.mean(cache_data, axis=0)
         # 抵抗値の算出 (R = V / I)
         resistance = np.divide(mean[0], mean[1], out=np.zeros_like(mean[0]), where=mean[1] != 0.0)
-        if abs(resistance - target_resistance) < 0.1:
-            seikaku_count += 1
         # PID値計算
         output = pid(resistance) # 0-100%
-        if output is None:
-            output = 0.0
         # PWM制御
         pi.set_PWM_dutycycle(12, int(output * 2.55)) # 0-255
 
         # 情報開示
-        sa = ((f'\033[32m' if abs(resistance - target_resistance) < 0.1 else
-              f'\033[34m' if resistance > target_resistance else
-              f'\033[31m') +
-              f'{resistance:02.2f}\033[0m/{target_resistance:02.2f}')
-        print(f'S:{elapse:4.2f}s', f'\033[32m{seikaku_count}\033[0m',
-              f'P:{pid.components[0]:+03.1f}', f'I:{pid.components[1]:+03.1f}', f'D:{pid.components[2]:+03.1f}',
-              f'PWM:{int(output):03d}',
-              f'OHM:{sa}Ω', end="\r")
+        print("\r", f'S:{elapse:4.2f}s', f'PWM:{int(output):03d}',
+              f'OHM:{resistance:2.2f}/{target_resistance:2.2f}Ω', end="")
 
         # CSVキャッシュ書き込み
-        csv_data = np.concatenate((csv_data, [[elapse, *mean, resistance, target_resistance, output]]), axis=0)
+        csv_data = np.concatenate((csv_data, [[elapse, *mean, resistance, target_resistance]]), axis=0)
 
 except KeyboardInterrupt:
     print("\nADCを閉じています.")
@@ -170,6 +153,6 @@ except KeyboardInterrupt:
     # CSVに保存
     if isSave:
         print(csv_filename + ".csvに保存中.")
-        np.savetxt(f'{work_dir}/{csv_filename}.csv', np.array(csv_data), delimiter=',', header= ','.join (csv_header) + f',#Kp:{Kp},#Ki:{Ki},#Kd:{Kd},#avg:{read_samples},#freq:{pwm_freq},#duty:[{duty_range[0]}-{duty_range[1]}]', comments='')
+        np.savetxt(f'{work_dir}/{csv_filename}.csv', np.array(csv_data), delimiter=',', header= ','.join(csv_header), comments='')
         print("「\033[31m" + csv_filename + ".csv\033[0m」に保存しました.")
     print('終了\033[?25h')

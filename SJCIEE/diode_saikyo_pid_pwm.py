@@ -1,6 +1,6 @@
 # PWM 立下りのとき1回を無視する
 
-import mcp3208 as adc
+import CTA_feedback.module.skyfish.mcp3208 as adc
 import time
 import os
 import pigpio

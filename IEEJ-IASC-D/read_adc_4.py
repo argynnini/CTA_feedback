@@ -14,24 +14,20 @@ import time
 import numpy as np
 import datetime
 from enum import IntEnum
+from itertools import starmap
 
-import mcp3208 as adc
+import CTA_feedback.module.skyfish.mcp3208 as adc
 
 isSave = True # csvに保存するかどうか
 Vref = 5.0 # 電源電圧
 Offset = 2.5 # オフセット電圧
 read_samples = 500 # サンプル数 500
-Vthreshold = 1.4 # 電圧の閾値
+Vthreshold = 0.1 # 電圧の閾値
 
 # 画面クリア
 os.system("clear")
 # ロゴ表示
-
-# 作業ディレクトリのパスを変数で取得
-work_dir = os.getcwd()
-
-# ロゴ表示
-os.system(f"paste {work_dir}/skyfish/pilogo.txt {work_dir}/skyfish/bmflogo.txt | lolcat")
+os.system("paste ./skyfish/pilogo.txt ./skyfish/bmflogo.txt | lolcat")
 
 
 # チャンネル定義
@@ -78,15 +74,12 @@ try:
         cache_data = np.empty((0, 2), dtype=np.float64)
         while len(cache_data) < read_samples:
             # 電竜センサと電源の電圧値を取得
-            voltage = adc.read_voltage(channnel.BMF_voltage, adc.convtype.diff, Vref)
-            current_v = adc.read_voltage(channnel.BMF_current, adc.convtype.sgl, Vref)
-
-            current = (current_v - Offset) / Vref
-
+            voltage = adc.read_voltage(channnel.BMF_voltage, adc.conv.diff, Vref)
+            current_v = adc.read_voltage(channnel.BMF_current, adc.conv.sgl, Vref)
             # 電圧値が閾値以上の場合
-            if voltage >= Vthreshold and current > 0:
+            if (voltage >= Vthreshold):
                 # 電流値に変換
-                # current = max((current_v - Offset) / Vref, 0)
+                current = (current_v - Offset) / Vref
 
                 # CSVキャッシュ書き込み
                 cache_data = np.concatenate((cache_data, [[voltage, current]]), axis=0)
@@ -99,7 +92,7 @@ try:
         # 平均値を取得(1列目に経過時間を追加)
         mean = np.mean(cache_data, axis=0)
         # 抵抗値の算出 (R = V / I)
-        resistance = np.where(mean[1] != 0.0, mean[0] / mean[1], 0.0)
+        resistance = np.where(mean[1] != 0, mean[0] / mean[1], 0)
 
         # CSVキャッシュ書き込み
         csv_data = np.concatenate((csv_data, [[elapse, *mean, resistance]]), axis=0)
@@ -112,6 +105,6 @@ except KeyboardInterrupt:
     # CSVに保存
     if isSave:
         print(csv_filename + ".csvに保存中.")
-        np.savetxt(f'{work_dir}/{csv_filename}.csv', np.array(csv_data), delimiter=',', header= ','.join(csv_header), comments='')
+        np.savetxt(f'./{csv_filename}.csv', np.array(csv_data), delimiter=',', header= ','.join(csv_header), comments='')
         print("「\033[31m" + csv_filename + ".csv\033[0m」に保存しました.")
     print('終了\033[?25h')

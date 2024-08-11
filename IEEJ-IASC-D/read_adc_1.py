@@ -17,7 +17,7 @@ import datetime
 from enum import IntEnum
 from itertools import starmap
 
-import mcp3208 as adc
+import CTA_feedback.module.skyfish.mcp3208 as adc
 
 isSave = True # csvに保存するかどうか
 Vref = 5.0 # 電源電圧
