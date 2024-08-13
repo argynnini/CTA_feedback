@@ -73,3 +73,4 @@ for i in range(0, n_u + n_y + 2):
     min_m.append(min([data.required_point[i] for data in initdata.dataset]))
 
 print(max_m, '\n', min_m)
+
