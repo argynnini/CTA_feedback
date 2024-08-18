@@ -72,5 +72,30 @@ for i in range(0, n_u + n_y + 2):
     max_m.append(max([data.required_point[i] for data in initdata.dataset]))
     min_m.append(min([data.required_point[i] for data in initdata.dataset]))
 
-print(max_m, '\n', min_m)
+max_min_diff = [x - y for x, y in zip(max_m, min_m)]
+# print(max_m, '\n', min_m, max_min_diff) # 最大値，最小値，最大値-最小値
 
+# 要求点とデータベース内の情報ベクトルの距離を計算して配列に格納する．ここでは，重み付きL1ノルムを用いる.
+# 距離 = Σ(|(要求点i - データベース内の情報ベクトルij)| / (最大値i - 最小値i))   
+
+entire_distance = []
+distances = []
+# len(initdata.dataset)
+for j in range(0, 3):
+    for data in initdata.dataset:
+        distance = 0
+        for i in range(0, n_u + n_y + 2):
+            distance += abs(data.required_point[i] - initdata.dataset[j].required_point[i]) / max_min_diff[i]
+        distances.append(distance)
+    entire_distance.append(distances)
+    print(j)
+
+# smallest_n_elements = sorted(array)[:n]
+
+# for index, data in enumerate(initdata.dataset):
+#     distance = 0
+#     for i in range(0, n_u + n_y + 2):
+#         distance += abs(data.required_point[i] - initdata.dataset[index].required_point[i]) / max_min_diff[i]
+#     distances.append(distance)
+
+print(distances) # 距離
