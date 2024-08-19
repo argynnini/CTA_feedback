@@ -4,7 +4,6 @@
 
 import numpy as np
 from enum import IntEnum
-from dataclasses import dataclass
 
 
 INIT_DATA = './Data-Driven/pid_sikoku24.csv' # 初期データのファイル名
@@ -76,29 +75,33 @@ max_m = np.max(dataset, axis=0)
 min_m = np.min(dataset, axis=0)
 max_min_diff = max_m - min_m
 
+for_min = 0
+for_max = 10000 #len(initdata.dataset)
+
 # print(max_m, '\n', min_m, max_min_diff) # 最大値，最小値，最大値-最小値
 
 # 要求点とデータベース内の情報ベクトルの距離を計算して配列に格納する．ここでは，重み付きL1ノルムを用いる.
 # 距離 = Σ(|(要求点i - データベース内の情報ベクトルij)| / (最大値i - 最小値i))   
 distances = []
 # len(initdata.dataset)
-for j in range(0, len(initdata.dataset)):
+for j in range(for_min, for_max):
+    print('\r距離計算中 ', j,' / ', for_max, end='')
     distance = np.abs(dataset - dataset[j]) / max_min_diff
     distance = np.sum(distance, axis=1)
     distances.append(distance)
-    print('\r', j,' / ', len(initdata.dataset), end='')
 print('\n')
 
 # 距離djが小さいものからn個の情報ベクトルを近傍データとして取り出す
 n = 3  # 取り出す要素の数
 nearest_data = []
 
-for i in range(0, len(initdata.dataset)):
+for i in range(for_min, for_max):
+    print('\r最小距離算出中 ', i,' / ', for_max, end='')
     # 配列をソートしてインデックスを取得し、小さい順にn個のインデックスを取り出す
     nearest_indices = np.argsort(distances[i])[:n]
     # 近傍データを取り出す
     nearest_data.append(dataset[nearest_indices])
-
+print('\n')
 # print(nearest_data)  # 近傍データ
 
 # PIDゲインの算出
@@ -111,16 +114,17 @@ for i in range(0, len(initdata.dataset)):
 
 # 重みの計算
 weights = []
-for i in range(0, len(initdata.dataset)):
+for i in range(for_min, for_max):
+    print('\r重み計算中 ', i,' / ', for_max, end='')
     # 重みの計算
     weight = np.exp(-distances[i]) / np.sum(np.exp(-distances[i]))
     weights.append(weight)
-
-print(np.sum(weights[0]))
+print('\n')
 
 # 重み付き線形平均法による局所モデルの構成
 local_model = []
-for i in range(0, len(initdata.dataset)):
+for i in range(for_min, for_max):
+    print('\r局所モデル計算中 ', i,' / ', for_max, end='')
     # 重み付き線形平均法による局所モデルの構成
     local = 0
     Kp_old, Ki_old, Kd_old = 0, 0, 0
@@ -129,6 +133,10 @@ for i in range(0, len(initdata.dataset)):
         Ki_old += weights[i][j] * pid_gain[j][1]
         Kd_old += weights[i][j] * pid_gain[j][2]
     local_model.append([Kp_old, Ki_old, Kd_old])
+# それぞれのゲインの最大値
+print('\n')
+print(np.max(local_model, axis=0))
+print('\n')
 
-print(local_model)  # 局所モデル
+# print(local_model)  # 局所モデル
 
