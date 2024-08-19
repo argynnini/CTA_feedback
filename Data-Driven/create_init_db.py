@@ -65,37 +65,38 @@ class InitData:
 initdata = InitData(INIT_DATA, n_u, n_y, INIT_GAIN) # 操業データ読み込み
 initdata.create() # 操業データベース作成
 
+dataset = np.array([data.required_point for data in initdata.dataset])
+
 # データベースにあるすべての情報ベクトルのi番目の要素の中で，最も大きな要素と最も小さな要素
 max_m = []
 min_m = []
-for i in range(0, n_u + n_y + 2):
-    max_m.append(max([data.required_point[i] for data in initdata.dataset]))
-    min_m.append(min([data.required_point[i] for data in initdata.dataset]))
+# 最大値と最小値を計算
+max_m = np.max(dataset, axis=0)
+min_m = np.min(dataset, axis=0)
+max_min_diff = max_m - min_m
 
-max_min_diff = [x - y for x, y in zip(max_m, min_m)]
 # print(max_m, '\n', min_m, max_min_diff) # 最大値，最小値，最大値-最小値
 
 # 要求点とデータベース内の情報ベクトルの距離を計算して配列に格納する．ここでは，重み付きL1ノルムを用いる.
 # 距離 = Σ(|(要求点i - データベース内の情報ベクトルij)| / (最大値i - 最小値i))   
-
 entire_distance = []
-distances = []
 # len(initdata.dataset)
-for j in range(0, 3):
-    for data in initdata.dataset:
-        distance = 0
-        for i in range(0, n_u + n_y + 2):
-            distance += abs(data.required_point[i] - initdata.dataset[j].required_point[i]) / max_min_diff[i]
-        distances.append(distance)
+for j in range(0, 100):
+    distances = np.abs(dataset - dataset[j]) / max_min_diff
+    distances = np.sum(distances, axis=1)
     entire_distance.append(distances)
     print(j)
 
-# smallest_n_elements = sorted(array)[:n]
+# 距離djが小さいものからn個の情報ベクトルを近傍データとして取り出す
+n = 3  # 取り出す要素の数
+nearest_data = []
 
-# for index, data in enumerate(initdata.dataset):
-#     distance = 0
-#     for i in range(0, n_u + n_y + 2):
-#         distance += abs(data.required_point[i] - initdata.dataset[index].required_point[i]) / max_min_diff[i]
-#     distances.append(distance)
+for i in range(0, 100):
+    # 配列をソートしてインデックスを取得し、小さい順にn個のインデックスを取り出す
+    nearest_indices = np.argsort(entire_distance[i])[:n]
+    # 近傍データを取り出す
+    nearest_data.append(dataset[nearest_indices])
+
+print(nearest_data)  # 近傍データ
 
 print(distances) # 距離
