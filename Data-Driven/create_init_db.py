@@ -6,8 +6,8 @@ import numpy as np
 from enum import IntEnum
 
 
-# INIT_DATA = './Data-Driven/pid_sikoku24.csv' # 初期データのファイル名
-INIT_DATA = './Data-Driven/pid_test.csv' # 初期データのファイル名
+INIT_DATA = './Data-Driven/pid_sikoku24.csv' # 初期データのファイル名
+# INIT_DATA = './Data-Driven/pid_test.csv' # 初期データのファイル名
 INIT_GAIN = [40.0, 10.0, 0.50] # 初期のPID制御器のゲイン
 n_u = 2 # 入力変数の数
 n_y = 2 # 出力変数の数
@@ -145,5 +145,8 @@ print('\n完了')
 print(np.max(local_model, axis=0))
 print('\n')
 
+# local model から重複を削除
+local_model_unique = np.unique(local_model, axis=0)
+print('\n')
 # print(local_model)  # 局所モデル
 
