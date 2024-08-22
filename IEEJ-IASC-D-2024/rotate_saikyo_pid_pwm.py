@@ -18,9 +18,10 @@ from enum import IntEnum
 import pigpio
 from simple_pid import PID
 import math
-
-import CTA_feedback.module.skyfish.mcp3208 as adc
-import CTA_feedback.module.skyfish.rotary_code as rc
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
+import module.mcp3208 as adc
+import module.rotary_code as rc
 
 # --- パラメータ設定 ---
 # /// PID ///
@@ -57,9 +58,9 @@ JST = datetime.timezone(offset=t_delta, name="JST")
 now = datetime.datetime.now(JST)
 
 # --- ロゴ表示 ---
-os.system(
-    f"clear && paste {work_dir}/skyfish/pilogo.txt {work_dir}/skyfish/bmflogo.txt | lolcat"
-)
+# os.system(
+#     f"clear && paste {work_dir}/skyfish/pilogo.txt {work_dir}/skyfish/bmflogo.txt | lolcat"
+# )
 
 
 # os.system(f"clear && paste {work_dir}/skyfish/pilogo.txt {work_dir}/skyfish/bmflogo.txt | tte slide")
