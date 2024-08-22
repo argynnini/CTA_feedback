@@ -95,13 +95,14 @@ print('\n完了')
 
 # 距離djが小さいものからn個の情報ベクトルを近傍データとして取り出す
 n = 3  # 取り出す要素の数
+nearest_distance = np.empty((for_max - for_min, n))
 nearest_data = np.empty((for_max - for_min, n, dataset.shape[1]))
-
 for i in range(for_min, for_max):
     print('\r近傍計算中 ', i+1,' / ', for_max, end='')
     # 配列をソートしてインデックスを取得し、小さい順にn個のインデックスを取り出す
     nearest_indices = np.argsort(distances[i])[:n]
     # 近傍データを取り出す
+    nearest_distance[i - for_min] = distances[i][nearest_indices]
     nearest_data[i - for_min] = dataset[nearest_indices]
 del nearest_indices  # 不要な変数を削除
 print('\n完了')
@@ -115,13 +116,12 @@ print('\n完了')
 # 重みw_iはΣ(i=0~n) w_i = 1を満たすように正規化する．
 # d_i = Σ(j=0~m) |(要求点j - データベース内の情報ベクトルij)| / (最大値j - 最小値j) = distances
 
-# 重みの計算
-weights = np.empty((for_max - for_min, distances.shape[1]))
-
+# 近傍に対する重みwの計算
+weights = np.empty((for_max - for_min, nearest_data.shape[1]))
 for i in range(for_min, for_max):
     print('\r重み計算中 ', i+1,' / ', for_max, end='')
     # 重みの計算
-    exp_distances = np.exp(-distances[i])
+    exp_distances = np.exp(-nearest_distance[i])
     weight = exp_distances / np.sum(exp_distances)
     weights[i - for_min] = weight  # NumPy 配列に直接格納
 del weight, exp_distances  # 不要な変数を削除
@@ -129,15 +129,14 @@ print('\n完了')
 
 # 重み付き線形平均法による局所モデルの構成
 local_model = np.empty((for_max - for_min, 3))
-
 for i in range(for_min, for_max):
     print('\r局所モデル計算中 ', i+1,' / ', for_max, end='')
     # 重み付き線形平均法による局所モデルの構成
     Kp_old, Ki_old, Kd_old = 0, 0, 0
     for j in range(0, n):
-        Kp_old += weights[i][j] * pid_gain[j][0]
-        Ki_old += weights[i][j] * pid_gain[j][1]
-        Kd_old += weights[i][j] * pid_gain[j][2]
+        Kp_old += weights[i][j] * pid_gain[i][0]
+        Ki_old += weights[i][j] * pid_gain[i][1]
+        Kd_old += weights[i][j] * pid_gain[i][2]
     local_model[i - for_min] = [Kp_old, Ki_old, Kd_old]
 del Kp_old, Ki_old, Kd_old  # 不要な変数を削除
 print('\n完了')
