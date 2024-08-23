@@ -157,10 +157,8 @@ print('\n')
 # J(t) = 1/2{(y0(t) - yr(t))^2 + λ * fsΔu(t-1)^2}
 # yr(t)は疑似参照入力r(t)と参照モデルGm(z^-1)を用いて計算する．
 # yr(t) = Gm(z^-1) * r(t)
-# r(t) = {Δu0(t) + (Kp(t)+Ki(t)+Kd(t))y0(t)
-#         -(Kp(t)+2Kd(t))y0(t-1) 
-#         + Kd(t)y0(t-2)} / Ki(t)}
-# 参照モデルGm(z^-1)は2次遅れ系でとして，次のように表される．
+# r(t) = {Δu0(t) + (Kp(t)+Ki(t)+Kd(t))y0(t) - (Kp(t)+2Kd(t))y0(t-1) + Kd(t)y0(t-2)} / Ki(t)}
+# 参照モデルGm(z^-1)は2次遅れ系として，次のように表される．
 # Gm(z^-1) = z^-1 P(1) / P(z^-1)
 # ただし，P(z^-1) はGm(z^-1)の特性多項式であり，次のように表される．
 # P(z^-1) = 1 + p1 z^-1 + p2 z^-2
@@ -177,3 +175,52 @@ print('\n')
 # ∂J(t+1) / ∂Ki(t) = ∂J(t+1) / ∂yr(t+1) * ∂yr(t+1) / ∂r(t) * ∂r(t) / ∂Ki(t) + λ * fs * ∂Δu(t)^2 / ∂Δu(t) * ∂Δu(t) / ∂Ki(t)
 # ∂J(t+1) / ∂Kd(t) = ∂J(t+1) / ∂yr(t+1) * ∂yr(t+1) / ∂r(t) * ∂r(t) / ∂Kd(t) + λ * fs * ∂Δu(t)^2 / ∂Δu(t) * ∂Δu(t) / ∂Kd(t)
 # これらの微分を用いて，θnewを求める．
+
+# 参照モデルの特性多項式の係数
+def calc_p1(rho):
+    return -2 * np.exp(-rho / 2) * np.cos(rho * np.sqrt(4 - 1) / 2)
+def calc_p2(rho):
+    return np.exp(-rho)
+def calc_p(rho):
+    return np.array([1, calc_p1(rho), calc_p2(rho)])
+# 参照モデルの特性
+def calc_Gm(rho):
+    return calc_p(1) / calc_p(rho)
+# Δu(t)の計算
+def calc_delta_u(Kp, Ki, Kd, r, yr, y, y_1, y_2, delta_yr):
+    return Ki * (r - yr) - Kp * yr - Kd * delta_yr**2
+# r(t)の計算
+def calc_r(Kp, Ki, Kd, y, y_1, y_2):
+    return (y + (Kp + Ki + Kd) * y - (Kp + 2 * Kd) * y_1 + Kd * y_2) / Ki
+# yr(t)の計算
+def calc_yr(Kp, Ki, Kd, r, y, y_1, y_2):
+    return calc_Gm(1) * r
+# J(t)の計算
+def calc_J(y, yr, lambda_fs, delta_u):
+    return 0.5 * (y - yr)**2 + lambda_fs * delta_u**2
+# ∂J(t+1) / ∂Kp(t)の計算
+def calc_dJ_dKp(y, yr, r, Kp, Ki, Kd, lambda_fs, delta_u, delta_yr):
+    return (y - yr) * (r - Kp * yr - Kd * delta_yr**2) + lambda_fs * delta_u * delta_yr**2
+# ∂J(t+1) / ∂Ki(t)の計算
+def calc_dJ_dKi(y, yr, r, Kp, Ki, Kd, lambda_fs, delta_u, delta_yr):
+    return (y - yr) * (r - Kp * yr - Kd * delta_yr**2)
+# ∂J(t+1) / ∂Kd(t)の計算
+def calc_dJ_dKd(y, yr, r, Kp, Ki, Kd, lambda_fs, delta_u, delta_yr):
+    return (y - yr) * (r - Kp * yr - Kd * delta_yr**2) + lambda_fs * delta_u * 2 * Kd * delta_yr
+# θnewの計算
+def calc_theta_new(Kp, Ki, Kd, dJ_dKp, dJ_dKi, dJ_dKd, eta_p, eta_i, eta_d):
+    return [Kp - eta_p * dJ_dKp, Ki - eta_i * dJ_dKi, Kd - eta_d * dJ_dKd]
+
+# パラメータ
+lambda_fs = 1  # λ * fs
+eta_p = 0.1  # ηp
+eta_i = 0.1  # ηi
+eta_d = 0.1  # ηd
+sigma = 0.5  # σ
+delta = 0.5  # δ
+Ts = 1  # サンプリング時間
+rho = Ts / sigma  # ρ
+u = 0.25 * (1 - sigma) + 0.51 * delta  # u
+Gm = calc_Gm(rho)  # 参照モデル
+p = calc_p(rho)  # 参照モデルの特性多項式
+print(Gm, p)
