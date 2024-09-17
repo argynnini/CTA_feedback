@@ -17,7 +17,10 @@ import datetime
 from enum import IntEnum
 from itertools import starmap
 
-import CTA_feedback.module.skyfish.mcp3208 as adc
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
+import module.mcp3208 as adc
+import module.rotary_code as rc
 
 isSave = True # csvに保存するかどうか
 Vref = 5.0 # 電源電圧

@@ -1,12 +1,15 @@
 # PWM 立下りのとき1回を無視する
 
-import CTA_feedback.module.skyfish.mcp3208 as adc
+
 import time
 import os
 import pigpio
 import csv
 from simple_pid import PID
 import math
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
+import module.mcp3208 as adc
 
 Kp = 40.0
 Ki = 10.0
@@ -16,20 +19,25 @@ diode_current = 0.00963  # 9.63mA
 ampR = 1.986  # 1.986 kΩ
 ampGain = 1 + 49.4 / ampR
 
+pwm_freq = 1000 # サンプリング周波数
+duty_range = [0, 50]  # duty比の範囲 30
+
+v_thresh = [1.5, 3.0]
+
 pid = PID(-Kp, -Ki, -Kd, setpoint=0)
-pid.output_limits = (0, 30)  # PWM は0~30%の範囲で出力
+pid.output_limits = (duty_range[0], duty_range[1])  # PWM は0~30%の範囲で出力
 pid.sample_time = 0.1  # 制御周期は0.1秒
 # pid.proportional_on_measurement = True  # 逓減制御
 
-test_distance = [4, 7]  # , 10, 13, 16, 19, 22, 25]
-# test_resistance = [
-#     0.39 * math.sqrt(25.36 - x) + 7.4 for x in test_distance
-# ]  # テスト抵抗値
-test_resistance = [9.0, 8.0, 7.5]
+test_distance = [10, 15, 20, 25]  # , 10, 13, 16, 19, 22, 25]
+test_resistance = [
+    0.39 * math.sqrt(25.36 - x) + 7.4 for x in test_distance
+]  # テスト抵抗値
+# test_resistance = [9.0, 8.0, 7.5]
 test_interval = 5  # テスト抵抗値を変更する間隔
 
 pwm_freq = 1000 # サンプリング周波数
-duty_range = [0, 30]  # duty比の範囲
+duty_range = [0, 40]  # duty比の範囲 30
 
 v_thresh = [1.5, 3.0]
 

@@ -77,14 +77,14 @@ class ch(IntEnum):
 
 # 5Vでは2MHzが限界?
 try:
-    adc.open(port=0, cs=0, speed=7800000)  # 7.8 MHz が限界
+    adc.open(port=0, cs=0, speed=2000000)  # 7.8 MHz が限界
 # 例外処理(権限がない場合)
 except PermissionError:
     os.system("sudo groupadd gpio")
     os.system("sudo usermod -a -G gpio -G spi pi")
     os.system("sudo chown root:spi /dev/spidev*")
     os.system("sudo chmod g+rw /dev/spidev*")
-    adc.open(port=0, cs=0, speed=7800000)  # 7.8 MHz が限界
+    adc.open(port=0, cs=0, speed=2000000)  # 7.8 MHz が限界
 
 # --- PWM ---
 pi = pigpio.pi()
