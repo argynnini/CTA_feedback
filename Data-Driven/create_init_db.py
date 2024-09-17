@@ -6,8 +6,8 @@ import numpy as np
 from enum import IntEnum
 
 
-INIT_DATA = './Data-Driven/pid_sikoku24.csv' # 初期データのファイル名
-# INIT_DATA = './Data-Driven/pid_test.csv' # 初期データのファイル名
+# INIT_DATA = './Data-Driven/pid_sikoku24.csv' # 初期データのファイル名
+INIT_DATA = './Data-Driven/pid_test.csv' # 初期データのファイル名
 INIT_GAIN = [40.0, 10.0, 0.50] # 初期のPID制御器のゲイン
 n_u = 2 # 入力変数の数
 n_y = 2 # 出力変数の数
@@ -94,7 +94,7 @@ del distance  # 不要な変数を削除
 print('\n完了')
 
 # 距離djが小さいものからn個の情報ベクトルを近傍データとして取り出す
-n = 3  # 取り出す要素の数
+n = 4  # 取り出す要素の数
 nearest_distance = np.empty((for_max - for_min, n))
 nearest_data = np.empty((for_max - for_min, n, dataset.shape[1]))
 for i in range(for_min, for_max):
@@ -116,12 +116,13 @@ print('\n完了')
 # 重みw_iはΣ(i=0~n) w_i = 1を満たすように正規化する．
 # d_i = Σ(j=0~m) |(要求点j - データベース内の情報ベクトルij)| / (最大値j - 最小値j) = distances
 
-# 近傍に対する重みwの計算
-weights = np.empty((for_max - for_min, nearest_data.shape[1]))
+# 近傍に対する重みwの計算(自分自身は除外)
+nearest_distance_without_self = nearest_distance[:, 1:]
+weights = np.empty((for_max - for_min, nearest_distance_without_self.shape[1]))
 for i in range(for_min, for_max):
     print('\r重み計算中 ', i+1,' / ', for_max, end='')
     # 重みの計算
-    exp_distances = np.exp(-nearest_distance[i])
+    exp_distances = np.exp(-nearest_distance_without_self[i])
     weight = exp_distances / np.sum(exp_distances)
     weights[i - for_min] = weight  # NumPy 配列に直接格納
 del weight, exp_distances  # 不要な変数を削除
@@ -133,7 +134,7 @@ for i in range(for_min, for_max):
     print('\r局所モデル計算中 ', i+1,' / ', for_max, end='')
     # 重み付き線形平均法による局所モデルの構成
     Kp_old, Ki_old, Kd_old = 0, 0, 0
-    for j in range(0, n):
+    for j in range(0, n - 1): # 近傍データの数(自分自身は除外なので-1)
         Kp_old += weights[i][j] * pid_gain[i][0]
         Ki_old += weights[i][j] * pid_gain[i][1]
         Kd_old += weights[i][j] * pid_gain[i][2]
@@ -150,3 +151,77 @@ local_model_unique = np.unique(local_model, axis=0)
 print('\n')
 # print(local_model)  # 局所モデル
 
+# 次に，Kp, Ki, Kdの値に対して，次の最急降下法を用いて，学習を行う．
+# θnew = θold(t) - η * ∂J(t+1) / ∂old(t)
+# θ = [Kp, Ki, Kd], η = 学習係数ベクトル[ηp, ηi, ηd]
+# J(t) = 1/2{(y0(t) - yr(t))^2 + λ * fsΔu(t-1)^2}
+# yr(t)は疑似参照入力r(t)と参照モデルGm(z^-1)を用いて計算する．
+# yr(t) = Gm(z^-1) * r(t)
+# r(t) = {Δu0(t) + (Kp(t)+Ki(t)+Kd(t))y0(t) - (Kp(t)+2Kd(t))y0(t-1) + Kd(t)y0(t-2)} / Ki(t)}
+# z^-1は遅延演算子であり，z^-1y(t) = y(t-1)である．
+# 参照モデルGm(z^-1)は2次遅れ系として，次のように表される．
+# Gm(z^-1) = z^-1 P(1) / P(z^-1)
+# ただし，P(z^-1) はGm(z^-1)の特性多項式であり，次のように表される．
+# P(z^-1) = 1 + p1 z^-1 + p2 z^-2
+# p1 = -2exp(-ρ/2u)cos(ρ*√(4u-1)/2u)
+# p2 = exp(-ρ/u)
+# ρ := Ts / σ
+# u := 0.25(1-σ) + 0.51δ
+# σ, δ はそれぞれ制御系の立ち上がり特性と減衰特性を表し，設計者が任意に設定する．
+# Ts はサンプリング時間である．
+# また，Δu(t)を次式で表す．
+# Δu(t) = Ki(t){r(t) - yr(t)} - Kp(t)yr(t) - Kd(t)Δyr(t)^2
+# 以上の関係から，θnewの右辺第2項の微分は次のようになる．
+# ∂J(t+1) / ∂Kp(t) = ∂J(t+1) / ∂yr(t+1) * ∂yr(t+1) / ∂r(t) * ∂r(t) / ∂Kp(t) + λ * fs * ∂Δu(t)^2 / ∂Δu(t) * ∂Δu(t) / ∂Kp(t)
+# ∂J(t+1) / ∂Ki(t) = ∂J(t+1) / ∂yr(t+1) * ∂yr(t+1) / ∂r(t) * ∂r(t) / ∂Ki(t) + λ * fs * ∂Δu(t)^2 / ∂Δu(t) * ∂Δu(t) / ∂Ki(t)
+# ∂J(t+1) / ∂Kd(t) = ∂J(t+1) / ∂yr(t+1) * ∂yr(t+1) / ∂r(t) * ∂r(t) / ∂Kd(t) + λ * fs * ∂Δu(t)^2 / ∂Δu(t) * ∂Δu(t) / ∂Kd(t)
+# これらの微分を用いて，θnewを求める．
+
+# 参照モデルの特性多項式の係数
+def calc_p1(rho):
+    return -2 * np.exp(-rho / 2) * np.cos(rho * np.sqrt(4 - 1) / 2)
+def calc_p2(rho):
+    return np.exp(-rho)
+def calc_p(rho):
+    return np.array([1, calc_p1(rho), calc_p2(rho)])
+# 参照モデルの特性
+def calc_Gm(rho):
+    return calc_p(1) / calc_p(rho)
+# Δu(t)の計算
+def calc_delta_u(Kp, Ki, Kd, r, yr, y, y_1, y_2, delta_yr):
+    return Ki * (r - yr) - Kp * yr - Kd * delta_yr**2
+# r(t)の計算
+def calc_r(Kp, Ki, Kd, y, y_1, y_2):
+    return (y + (Kp + Ki + Kd) * y - (Kp + 2 * Kd) * y_1 + Kd * y_2) / Ki
+# yr(t)の計算
+def calc_yr(Kp, Ki, Kd, r, y, y_1, y_2):
+    return calc_Gm(1) * r
+# J(t)の計算
+def calc_J(y, yr, lambda_fs, delta_u):
+    return 0.5 * (y - yr)**2 + lambda_fs * delta_u**2
+# ∂J(t+1) / ∂Kp(t)の計算
+def calc_dJ_dKp(y, yr, r, Kp, Ki, Kd, lambda_fs, delta_u, delta_yr):
+    return (y - yr) * (r - Kp * yr - Kd * delta_yr**2) + lambda_fs * delta_u * delta_yr**2
+# ∂J(t+1) / ∂Ki(t)の計算
+def calc_dJ_dKi(y, yr, r, Kp, Ki, Kd, lambda_fs, delta_u, delta_yr):
+    return (y - yr) * (r - Kp * yr - Kd * delta_yr**2)
+# ∂J(t+1) / ∂Kd(t)の計算
+def calc_dJ_dKd(y, yr, r, Kp, Ki, Kd, lambda_fs, delta_u, delta_yr):
+    return (y - yr) * (r - Kp * yr - Kd * delta_yr**2) + lambda_fs * delta_u * 2 * Kd * delta_yr
+# θnewの計算
+def calc_theta_new(Kp, Ki, Kd, dJ_dKp, dJ_dKi, dJ_dKd, eta_p, eta_i, eta_d):
+    return [Kp - eta_p * dJ_dKp, Ki - eta_i * dJ_dKi, Kd - eta_d * dJ_dKd]
+
+# パラメータ
+lambda_fs = 1  # λ * fs
+eta_p = 0.1  # ηp
+eta_i = 0.1  # ηi
+eta_d = 0.1  # ηd
+sigma = 0.5  # σ
+delta = 0.5  # δ
+Ts = 1  # サンプリング時間
+rho = Ts / sigma  # ρ
+u = 0.25 * (1 - sigma) + 0.51 * delta  # u
+Gm = calc_Gm(rho)  # 参照モデル
+p = calc_p(rho)  # 参照モデルの特性多項式
+print(Gm, p)
